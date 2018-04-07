@@ -10,8 +10,8 @@
 
 ------------------------------------------------------------------------
 
---hostName = "localhost" 
-hostName = "54.38.182.111"
+hostName = "localhost" 
+--hostName = "54.38.182.111"
 portNo = 42069
 socket = require "socket"
 

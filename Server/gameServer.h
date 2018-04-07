@@ -120,7 +120,6 @@ struct clientRemoval * removeClientByTimeout(client_t * list){
 
 // Updates timeout value of the element of list with given id.
 void updateTimeout(client_t *list, unsigned int id){
-	client_t * d = list;
 	if(!list)
 		return;
 	if(list->id==id){
@@ -138,7 +137,6 @@ void updateTimeout(client_t *list, unsigned int id){
 // goes from moving up to moving left) returns 1, else 0.
 int updatePosition(client_t *list, unsigned int id, int x, int y, 
 					int dx, int dy){
-	client_t * d = list;
 	int result;
 	if(!list)
 		return 0;

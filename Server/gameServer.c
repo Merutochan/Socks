@@ -18,10 +18,11 @@
 #include <stdlib.h> /* for duh... malloc and such*/
 #include <string.h> /* for strings */
 #include <sys/socket.h> /* for sockets */
-#include <time.h> /* for clocck() */
+#include <time.h> /* for clock() */
 #include <fcntl.h> /* for fcntl() on socket */
 #include <netinet/in.h> /* for sockaddr_in and such */
 #include <arpa/inet.h> /* for in_addr and such */
+#include <unistd.h> /* for close() */
 #include "gameServer.h" /* define basics for S/C interaction */
 
 // Check error function
@@ -33,7 +34,7 @@ void error(char *msg){
 int main(int argc, char **argv){
 
 	char buffer[BUFFER_LENGTH];
-	char messageData[BUFFER_LENGTH - 8];
+	char messageData[BUFFER_LENGTH - sizeof(char)*2 - sizeof(int)*2];
 	
 	struct sockaddr_in serverAddress, clientAddress;
 	socklen_t socketLength;
@@ -49,7 +50,7 @@ int main(int argc, char **argv){
 	int x, y, dx, dy;
 	
 	int i, j;
-	unsigned int receivedID, receivedType, removedID;
+	unsigned int receivedID, receivedType;
 	
 	/* ================================================ */
 
@@ -189,6 +190,6 @@ int main(int argc, char **argv){
 			}
 		}
 	}
-	close(serverAddress);
+	close(socketServer);
     return 0;
 }
