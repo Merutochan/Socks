@@ -8,11 +8,16 @@
 
 #define DEFAULT_PORT 42069
 #define BUFFER_LENGTH 512
-#define TIMEOUT_TIME 5
-#define RETRANSMISSIONS 1 
+#define TIMEOUT_TIME 3 // (s)
+#define SPAM_COUNTER 5
+#define SPAM_TIMEOUT 5 // (s)
+#define RETRANSMISSIONS 1
+#define DEFAULTX 32
+#define DEFAULTY 32
 
 #define MSG_LOGOUT 2
 #define MSG_MOVEMENT 3
+#define MSG_CHAT 4
 
 #include <stdio.h> /* for IO and perror */
 #include <stdlib.h> /* for duh... malloc and such*/
@@ -35,11 +40,13 @@ int main(int argc, char **argv){
 
 	char buffer[BUFFER_LENGTH];
 	char messageData[BUFFER_LENGTH - sizeof(char)*2 - sizeof(int)*2];
+	char chatData[BUFFER_LENGTH - sizeof(char)*3 - sizeof(int)*4];
 	
 	struct sockaddr_in serverAddress, clientAddress;
 	socklen_t socketLength;
-	client_t * knownClients = NULL, *d = NULL, *dd = NULL;
+	client_t *knownClients = NULL, *d = NULL, *dd = NULL;
 	struct clientRemoval *rem = NULL;
+	chat_t * chatLog = NULL, *c = NULL;
 	int nKnownClients=0;
 	
 	int newClientConnected;
@@ -48,6 +55,7 @@ int main(int argc, char **argv){
 	int socketServer;
 	
 	int x, y, dx, dy;
+	unsigned long hashMSG;
 	
 	int i, j;
 	unsigned int receivedID, receivedType;
@@ -70,6 +78,7 @@ int main(int argc, char **argv){
 	
 	rem = malloc(sizeof(struct clientRemoval));
 	d = malloc(sizeof(client_t));
+	c = malloc(sizeof(chat_t));
 	
     // Define Address
     serverAddress.sin_family = AF_INET;
@@ -77,7 +86,7 @@ int main(int argc, char **argv){
     serverAddress.sin_port = htons(portNo);
 
 	// Bind Socket
-    if (bind(socketServer,(struct sockaddr*) &serverAddress, 
+    if (bind(socketServer,(struct sockaddr *) &serverAddress, 
 		sizeof(serverAddress)) < 0)
 			error("Bind Error");
 
@@ -116,13 +125,19 @@ int main(int argc, char **argv){
 			// and second int of buffer to identify packet type
 			sscanf(buffer, "%d %d %[^\n]", &receivedID, 
 										   &receivedType, messageData);
-			
 			// For some reason server might read a false address
 			if (strcmp(inet_ntoa(clientAddress.sin_addr),"0.0.0.0")!=0){
 				// Add client to list if necessary
 				if (!matchID(knownClients, receivedID)){
+					if (receivedType == MSG_MOVEMENT){
+						sscanf(messageData, "%d %d", &x, &y);
+					}else{
+						// Default values
+						x = 32;
+						y = 32;
+					}
 					d = createClient(clientAddress, receivedID, 
-									 socketLength);
+									 socketLength, x, y);
 					knownClients = addClient(knownClients, d);
 					nKnownClients++;
 					newClientConnected = 1;
@@ -138,15 +153,11 @@ int main(int argc, char **argv){
 						break; // Yet to implement
 					case MSG_MOVEMENT:
 						// Extract the info structured as:
-						sscanf(messageData, "%d %d %d %d;", &x, &y, &dx,
+						sscanf(messageData, "%d %d %d %d", &x, &y, &dx,
 															&dy);
 						// If direction changed or new client connected
 						if (updatePosition(knownClients, receivedID,
 							x, y, dx, dy)!=0){
-							// Write info to buffer			
-							sprintf(buffer, "%d %d %d %d %d %d\n", 
-									receivedID,	MSG_MOVEMENT, x, y, dx,
-									dy);
 							// Send buffer to all clients
 							for(i=0;i<RETRANSMISSIONS;i++){
 								for (d=knownClients;d!=NULL;d=d->next){
@@ -159,6 +170,32 @@ int main(int argc, char **argv){
 								}
 							}
 						}
+						break;
+					case MSG_CHAT:
+						sscanf(messageData, "%lu %[^\n]", &hashMSG,
+											chatData);
+						if(hashMSG != dumbHash(chatData) || 
+							isLocked(knownClients, receivedID))
+							break;
+						printf("%d: %s\n", receivedID, chatData);
+						// Create chat node
+						c = createChatMSG(receivedID, messageData);
+						// Insert chat node
+						chatLog = insertChatMSG(chatLog, c);
+						// Update Spam Timeout
+						addSpamTimeout(knownClients, receivedID);
+						// Send msg to all
+						for(d=knownClients;d!=NULL;d=d->next){
+							for(i=0;i<RETRANSMISSIONS;i++){
+								j = sendto(socketServer, buffer, 
+									BUFFER_LENGTH, 0, 
+									(struct sockaddr *) d->address, 
+									d->len);
+								if (j < 0)
+									error("SendTo Error");
+							}
+						}
+						break;
 				}
 				
 				// Erase buffer
@@ -186,6 +223,11 @@ int main(int argc, char **argv){
 						// Erase buffer
 						memset(buffer, 0, BUFFER_LENGTH);
 					}
+				}
+				// Lower waiting time and unlock those who waited
+				// enough
+				for(d=knownClients;d!=NULL;d=d->next){
+					updateSpamTimeout(knownClients);
 				}
 			}
 		}
