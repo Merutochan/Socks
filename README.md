@@ -33,3 +33,6 @@ This way, the clients can render the movement in that direction.
 As soon as the server recognizes another movement change, it sends that info to all the clients again, so that they can re-adjust the current position and movement of the player moving.
 This allows for only two packets per direction change to be exchanged instead of a periodical exchange of the actual position which could easily congest the network and appear laggy for any user. 
 The clients are actually rendering a predicted movement which isn't validated by the server until a direction change packet arrives.
+
+- __Chat__:
+An ASCII chat with server-based spam timeout and hash control for integrity. It just works.
